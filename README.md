@@ -1,1 +1,1 @@
-# docker-selinux
+docker_selinux: description of module directory in here

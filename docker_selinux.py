@@ -57,7 +57,6 @@ docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
 		#shutit.login(command='sudo su')
 		shutit.send('/root/selinux/script.sh')
 		shutit.send('sleep 2 && docker logs selinuxdock')
-		shutit.pause_point('')
 		shutit.logout()
 		shutit.logout()
 		shutit.logout()

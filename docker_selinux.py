@@ -60,17 +60,16 @@ class docker_selinux(ShutItModule):
 		# Ensure we've cleaned up the files we're adding here.
 		shutit.add_line_to_file('''policy_module(docker_apache,1.0)
 virt_sandbox_domain_template(docker_apache)
-#allow docker_apache_t self: capability { chown dac_override kill setgid setuid net_bind_service sys_chroot sys_nice sys_tty_config } ;
-#allow docker_apache_t self:tcp_socket create_stream_socket_perms;
-#allow docker_apache_t self:udp_socket create_socket_perms;
-#corenet_tcp_bind_all_nodes(docker_apache_t)
-#corenet_tcp_bind_http_port(docker_apache_t)
-#corenet_udp_bind_all_nodes(docker_apache_t)
-#corenet_udp_bind_http_port(docker_apache_t)
-#sysnet_dns_name_resolve(docker_apache_t)
+allow docker_apache_t self: capability { chown dac_override kill setgid setuid net_bind_service sys_chroot sys_nice sys_tty_config } ;
+allow docker_apache_t self:tcp_socket create_stream_socket_perms;
+allow docker_apache_t self:udp_socket create_socket_perms;
+corenet_tcp_bind_all_nodes(docker_apache_t)
+corenet_tcp_bind_http_port(docker_apache_t)
+corenet_udp_bind_all_nodes(docker_apache_t)
+corenet_udp_bind_http_port(docker_apache_t)
+sysnet_dns_name_resolve(docker_apache_t)
+permissive docker_apache_t;
 '''.split('\n'),'/root/selinux/docker_apache.te')
-		if not setenforce: 
-			shutit.add_line_to_file('permissive docker_apache_t','/root/selinux/docker_apache.te')
 		shutit.add_line_to_file('''make -f /usr/share/selinux/devel/Makefile docker_apache.pp
 semodule -i docker_apache.pp
 docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
@@ -108,6 +107,7 @@ docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
 		# Have a look at the log output.
 		shutit.send('sleep 2 && docker logs selinuxdock')
 		shutit.send('dmesg | grep -i SELinux')
+		shutit.send('grep -w denied /var/log/audit/audit.log | tail')
 		# Comment this out to avoid getting an interactive shell.
 		shutit.pause_point('Have a shell:')
 		# Log out.

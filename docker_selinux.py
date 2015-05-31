@@ -53,7 +53,7 @@ class docker_selinux(ShutItModule):
 		# It should be up now, ssh into it and get root.
 		shutit.login(command='vagrant ssh')
 		shutit.login(command='sudo su')
-		# Insure required software's installed.
+		# Ensure required software's installed.
 		shutit.send('yum install -y wget selinux-policy-devel')
 		shutit.send('rm -rf /root/selinux')
 		shutit.send('mkdir -p /root/selinux')
@@ -62,8 +62,6 @@ class docker_selinux(ShutItModule):
 		shutit.send('wget -qO- https://get.docker.com/builds/Linux/x86_64/docker-latest > docker')
 		shutit.send('mv -f docker /usr/bin/docker')
 		shutit.send('chmod +x /usr/bin/docker')
-		# Insure required software's installed.
-		shutit.send('yum install -y wget selinux-policy-devel')
 		# Optional code for enforcing>
 		if setenforce: 
 			shutit.send('''sed -i 's/=permissive/=enforcing/' /etc/selinux/config''')
@@ -84,8 +82,6 @@ class docker_selinux(ShutItModule):
 		shutit.send('systemctl start docker')
 		# Remove any pre-existing containers.
 		shutit.send('docker rm -f selinuxdock || /bin/true')
-		shutit.send('mkdir -p /root/selinux')
-		shutit.send('cd /root/selinux')
 		if compile_policy:
 			# Ensure we've cleaned up the files we're adding here.
 			shutit.send('rm -rf /root/selinux/docker_apache.tc /root/selinux/script.sh')
@@ -105,10 +101,8 @@ semodule -i docker_apache.pp
 docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
 '''.split('\n'),'/root/selinux/script.sh')
 			shutit.send('chmod +x /root/selinux/script.sh')
-			# Ensure we have the latest version of docker.
-			# Optional code for enforcing>
-			shutit.send('sleep 2 && docker logs selinuxdock')
 			shutit.send('/root/selinux/script.sh')
+			shutit.send('sleep 2 && docker logs selinuxdock')
 			# Have a look at the log output.
 			shutit.send('dmesg | grep -i SELinux')
 			shutit.send('grep -w denied /var/log/audit/audit.log | tail')

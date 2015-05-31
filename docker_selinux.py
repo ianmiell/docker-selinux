@@ -56,8 +56,6 @@ class docker_selinux(ShutItModule):
 		# Ensure required software's installed.
 		shutit.send('yum install -y wget selinux-policy-devel')
 		shutit.send('rm -rf /root/selinux')
-		shutit.send('mkdir -p /root/selinux')
-		shutit.send('cd /root/selinux')
 		# Ensure we have the latest version of docker.
 		shutit.send('wget -qO- https://get.docker.com/builds/Linux/x86_64/docker-latest > docker')
 		shutit.send('mv -f docker /usr/bin/docker')
@@ -100,8 +98,10 @@ sysnet_dns_name_resolve(docker_apache_t)
 semodule -i docker_apache.pp
 docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
 '''.split('\n'),'/root/selinux/script.sh')
-			shutit.send('chmod +x /root/selinux/script.sh')
-			shutit.send('/root/selinux/script.sh')
+			shutit.send('mkdir -p /root/selinux')
+			shutit.send('cd /root/selinux')
+			shutit.send('chmod +x ./script.sh')
+			shutit.send('./script.sh')
 			shutit.send('sleep 2 && docker logs selinuxdock')
 			# Have a look at the log output.
 			shutit.send('dmesg | grep -i SELinux')

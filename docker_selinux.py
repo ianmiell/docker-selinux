@@ -24,6 +24,8 @@ class docker_selinux(ShutItModule):
 		# shutit.pause_point(msg='') - give control of the terminal to the user
 		# shutit.step_through(msg='') - give control to the user and allow them to step through commands
 		# shutit.send_and_get_output(send) - returns the output of the sent command
+		# shutit.send_and_match_output(send, matches) - returns True if any lines in output match any of 
+		#                                               the regexp strings in the matches list
 		# shutit.install(package) - install a package
 		# shutit.remove(package) - remove a package
 		# shutit.login(user='root', command='su -') - log user in with given command, and set up prompt and expects
@@ -35,82 +37,131 @@ class docker_selinux(ShutItModule):
 		vagrant_dir = shutit.cfg[self.module_id]['vagrant_dir']
 		setenforce  = shutit.cfg[self.module_id]['setenforce']
 		compile_policy  = shutit.cfg[self.module_id]['compile_policy']
+		shutit.install('linux-generic linux-image-generic linux-headers-generic linux-signed-generic')
 		shutit.install('virtualbox')
 		shutit.send('wget -qO- https://dl.bintray.com/mitchellh/vagrant/vagrant_1.7.2_x86_64.deb > /tmp/vagrant.deb')
 		shutit.send('dpkg -i /tmp/vagrant.deb')
 		shutit.send('rm /tmp/vagrant.deb')
-		shutit.login(user='imiell',command='su')
 		shutit.send('mkdir -p ' + vagrant_dir)
 		shutit.send('cd ' + vagrant_dir)
 		# If the Vagrantfile exists, we assume we've already init'd appropriately.
 		if not shutit.file_exists('Vagrantfile'):
-			shutit.send('vagrant init wrossmck/centos')
+			shutit.send('vagrant init jdiprizio/centos-docker-io')
 		# Query the status - if it's powered off or not created, bring it up.
-		shutit.multisend('vagrant status',{'poweroff':'vagrant up','is not created':'vagrant up'})
+		if shutit.send_and_match_output('vagrant status',['.*poweroff.*','.*not created.*','.*aborted.*']):
+			shutit.send('vagrant up')
 		# It should be up now, ssh into it and get root.
 		shutit.login(command='vagrant ssh')
 		shutit.login(command='sudo su')
+		# Insure required software's installed.
+		shutit.send('yum install -y wget selinux-policy-devel')
+		shutit.send('rm -rf /root/selinux')
+		shutit.send('mkdir -p /root/selinux')
+		shutit.send('cd /root/selinux')
+		# Ensure we've cleaned up the files we're adding here.
+		shutit.add_line_to_file('''policy_module(docker_apache,1.0)
+virt_sandbox_domain_template(docker_apache)
+allow docker_apache_t self: capability { chown dac_override kill setgid setuid net_bind_service sys_chroot sys_nice sys_tty_config } ;
+allow docker_apache_t self:tcp_socket create_stream_socket_perms;
+allow docker_apache_t self:udp_socket create_socket_perms;
+corenet_tcp_bind_all_nodes(docker_apache_t)
+corenet_tcp_bind_http_port(docker_apache_t)
+corenet_udp_bind_all_nodes(docker_apache_t)
+corenet_udp_bind_http_port(docker_apache_t)
+sysnet_dns_name_resolve(docker_apache_t)
+permissive docker_apache_t;
+'''.split('\n'),'/root/selinux/docker_apache.te')
+		shutit.add_line_to_file('''make -f /usr/share/selinux/devel/Makefile docker_apache.pp
+semodule -i docker_apache.pp
+docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
+'''.split('\n'),'/root/selinux/script.sh')
+		shutit.send('chmod +x /root/selinux/script.sh')
+		# Ensure we have the latest version of docker.
 		shutit.send('wget -qO- https://get.docker.com/builds/Linux/x86_64/docker-latest > docker')
 		shutit.send('mv -f docker /usr/bin/docker')
 		shutit.send('chmod +x /usr/bin/docker')
+		# Remove any pre-existing containers.
 		# Recycle docker service.
 		shutit.send('systemctl stop docker')
 		shutit.send('systemctl start docker')
 		# Insure required software's installed.
 		shutit.send('yum install -y wget selinux-policy-devel')
+		# Optional code for enforcing>
 		if setenforce: 
 			shutit.send('''sed -i 's/=permissive/=enforcing/' /etc/selinux/config''')
-			# Log out to ensure the prompt stack is stable.
-			shutit.logout()
-			shutit.logout(command='sudo reboot')
-			# Give it time...
-			shutit.send('sleep 20')
-			# Go back in.
-			shutit.login(command='vagrant ssh')
-			# Get back to root.
-			shutit.login(command='sudo su')
-			# We should now be root on the virtual box.
-			shutit.send('/root/selinux/script.sh')
-			# Have a look at the log output.
+		else:
+			shutit.send('''sed -i 's/=enforcing/=permissive/' /etc/selinux/config''')
+		# Log out to ensure the prompt stack is stable.
+		shutit.logout()
+		shutit.logout(command='sudo reboot')
+		# Give it time...
+		shutit.send('sleep 20')
+		# Go back in.
+		shutit.login(command='vagrant ssh')
+		# Get back to root.
+		shutit.login(command='sudo su')
 		if compile_policy:
 			shutit.send('mkdir -p /root/selinux')
 			shutit.send('cd /root/selinux')
 			# Ensure we've cleaned up the files we're adding here.
 			shutit.send('rm -rf /root/selinux/docker_apache.tc /root/selinux/script.sh')
 			shutit.add_line_to_file('''policy_module(docker_apache,1.0)
-virt_san	dbox_domain_template(docker_apache)
-allow do	cker_apache_t self: capability { chown dac_override kill setgid setuid net_bind_service sys_chroot sys_nice sys_tty_config } ;
-allow do	cker_apache_t self:tcp_socket create_stream_socket_perms;
-allow do	cker_apache_t self:udp_socket create_socket_perms;
-corenet_	tcp_bind_all_nodes(docker_apache_t)
-corenet_	tcp_bind_http_port(docker_apache_t)
-corenet_	udp_bind_all_nodes(docker_apache_t)
-corenet_	udp_bind_http_port(docker_apache_t)
-sysnet_d	ns_name_resolve(docker_apache_t)
-'''.spli	t('\n'),'/root/selinux/docker_apache.te')
+virt_sandbox_domain_template(docker_apache)
+allow docker_apache_t self: capability { chown dac_override kill setgid setuid net_bind_service sys_chroot sys_nice sys_tty_config } ;
+allow docker_apache_t self:tcp_socket create_stream_socket_perms;
+allow docker_apache_t self:udp_socket create_socket_perms;
+corenet_tcp_bind_all_nodes(docker_apache_t)
+corenet_tcp_bind_http_port(docker_apache_t)
+corenet_udp_bind_all_nodes(docker_apache_t)
+corenet_udp_bind_http_port(docker_apache_t)
+sysnet_dns_name_resolve(docker_apache_t)
+'''.split('\n'),'/root/selinux/docker_apache.te')
 			if setenforce: 
 				shutit.add_line_to_file('permissive docker_apache_t','/root/selinux/docker_apache.te')
 			shutit.add_line_to_file('''make -f /usr/share/selinux/devel/Makefile docker_apache.pp
-semodule	 -i docker_apache.pp
-docker r	un -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
-'''.spli	t('\n'),'/root/selinux/script.sh')
+semodule -i docker_apache.pp
+docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
+'''.split('\n'),'/root/selinux/script.sh')
 			shutit.send('chmod +x /root/selinux/script.sh')
 			# Ensure we have the latest version of docker.
 			# Remove any pre-existing containers.
 			shutit.send('docker rm -f selinuxdock || /bin/true')
 			# Optional code for enforcing>
 			shutit.send('sleep 2 && docker logs selinuxdock')
+			shutit.send('/root/selinux/script.sh')
+			# Have a look at the log output.
 		# Un-comment this to get a shell interactively if you want.
-		#shutit.pause_point('Have a shell:')
-		# Log out.
+		shutit.pause_point('Have a shell:')
+		shutit.send('docker rm -f selinuxdock || /bin/true')
+		# Log out to ensure the prompt stack is stable.
 		shutit.logout()
+		shutit.logout(command='sudo reboot')
+		# Give it time...
+		shutit.send('sleep 20')
+		# Go back in.
+		shutit.login(command='vagrant ssh')
+		# Get back to root.
+		shutit.login(command='sudo su')
+		# We should now be root on the virtual box.
+		# Recycle docker service.
+		shutit.send('systemctl stop docker')
+		shutit.send('systemctl start docker')
+		shutit.send('cd /root/selinux')
+		shutit.send('/root/selinux/script.sh')
+		# Have a look at the log output.
+		shutit.send('sleep 2 && docker logs selinuxdock')
+		shutit.send('dmesg | grep -i SELinux')
+		shutit.send('grep -w denied /var/log/audit/audit.log | tail')
+		# Comment this out to avoid getting an interactive shell.
+		shutit.pause_point('Have a shell:')
+		# Log out.
 		shutit.logout()
 		shutit.logout()
 		return True
 
 	def get_config(self, shutit):
 		shutit.get_config(self.module_id, 'vagrant_dir', '/tmp/vagrant_dir')
-		shutit.get_config(self.module_id, 'setenforce', 'no', boolean=True)
+		shutit.get_config(self.module_id, 'setenforce', False, boolean=True)
 		shutit.get_config(self.module_id, 'compile_policy', 'yes', boolean=True)
 		return True
 

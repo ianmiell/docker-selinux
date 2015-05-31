@@ -95,7 +95,7 @@ docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
 		shutit.logout()
 		shutit.logout(command='sudo reboot')
 		# Give it time...
-		shutit.send('sleep 20')
+		shutit.send('sleep 30')
 		# Go back in.
 		shutit.login(command='vagrant ssh')
 		# Get back to root.

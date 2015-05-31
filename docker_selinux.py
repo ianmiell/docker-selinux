@@ -141,7 +141,7 @@ docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
 	def get_config(self, shutit):
 		shutit.get_config(self.module_id, 'vagrant_dir', '/tmp/vagrant_dir')
 		shutit.get_config(self.module_id, 'setenforce', False, boolean=True)
-		shutit.get_config(self.module_id, 'compile_policy', 'yes', boolean=True)
+		shutit.get_config(self.module_id, 'compile_policy', True, boolean=True)
 		return True
 
 

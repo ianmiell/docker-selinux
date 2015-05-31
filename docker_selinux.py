@@ -80,10 +80,6 @@ docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
 		shutit.send('wget -qO- https://get.docker.com/builds/Linux/x86_64/docker-latest > docker')
 		shutit.send('mv -f docker /usr/bin/docker')
 		shutit.send('chmod +x /usr/bin/docker')
-		# Remove any pre-existing containers.
-		# Recycle docker service.
-		shutit.send('systemctl stop docker')
-		shutit.send('systemctl start docker')
 		# Insure required software's installed.
 		shutit.send('yum install -y wget selinux-policy-devel')
 		# Optional code for enforcing>
@@ -100,9 +96,15 @@ docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
 		shutit.login(command='vagrant ssh')
 		# Get back to root.
 		shutit.login(command='sudo su')
+		# Remove any pre-existing containers.
+		# Recycle docker service.
+		shutit.send('systemctl stop docker')
+		shutit.send('systemctl start docker')
+		# Remove any pre-existing containers.
+		shutit.send('docker rm -f selinuxdock || /bin/true')
+		shutit.send('mkdir -p /root/selinux')
+		shutit.send('cd /root/selinux')
 		if compile_policy:
-			shutit.send('mkdir -p /root/selinux')
-			shutit.send('cd /root/selinux')
 			# Ensure we've cleaned up the files we're adding here.
 			shutit.send('rm -rf /root/selinux/docker_apache.tc /root/selinux/script.sh')
 			shutit.add_line_to_file('''policy_module(docker_apache,1.0)
@@ -124,35 +126,12 @@ docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
 '''.split('\n'),'/root/selinux/script.sh')
 			shutit.send('chmod +x /root/selinux/script.sh')
 			# Ensure we have the latest version of docker.
-			# Remove any pre-existing containers.
-			shutit.send('docker rm -f selinuxdock || /bin/true')
 			# Optional code for enforcing>
 			shutit.send('sleep 2 && docker logs selinuxdock')
 			shutit.send('/root/selinux/script.sh')
 			# Have a look at the log output.
-		# Un-comment this to get a shell interactively if you want.
-		shutit.pause_point('Have a shell:')
-		shutit.send('docker rm -f selinuxdock || /bin/true')
-		# Log out to ensure the prompt stack is stable.
-		shutit.logout()
-		shutit.logout(command='sudo reboot')
-		# Give it time...
-		shutit.send('sleep 20')
-		# Go back in.
-		shutit.login(command='vagrant ssh')
-		# Get back to root.
-		shutit.login(command='sudo su')
-		# We should now be root on the virtual box.
-		# Recycle docker service.
-		shutit.send('systemctl stop docker')
-		shutit.send('systemctl start docker')
-		shutit.send('cd /root/selinux')
-		shutit.send('/root/selinux/script.sh')
-		# Have a look at the log output.
-		shutit.send('sleep 2 && docker logs selinuxdock')
-		shutit.send('dmesg | grep -i SELinux')
-		shutit.send('grep -w denied /var/log/audit/audit.log | tail')
-		# Comment this out to avoid getting an interactive shell.
+			shutit.send('dmesg | grep -i SELinux')
+			shutit.send('grep -w denied /var/log/audit/audit.log | tail')
 		shutit.pause_point('Have a shell:')
 		# Log out.
 		shutit.logout()

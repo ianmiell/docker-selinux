@@ -82,7 +82,9 @@ class docker_selinux(ShutItModule):
 		shutit.send('docker rm -f selinuxdock || /bin/true')
 		if compile_policy:
 			# Ensure we've cleaned up the files we're adding here.
-			shutit.send('rm -rf /root/selinux/docker_apache.tc /root/selinux/script.sh')
+			shutit.send('mkdir -p /root/selinux')
+			shutit.send('cd /root/selinux')
+			shutit.send('rm -rf /root/selinux/docker_apache.tc /root/selinux/script.sh /root/selinux/docker_apache.te')
 			shutit.add_line_to_file('''policy_module(docker_apache,1.0)
 virt_sandbox_domain_template(docker_apache)
 allow docker_apache_t self: capability { chown dac_override kill setgid setuid net_bind_service sys_chroot sys_nice sys_tty_config } ;
@@ -98,8 +100,6 @@ sysnet_dns_name_resolve(docker_apache_t)
 semodule -i docker_apache.pp
 docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
 '''.split('\n'),'/root/selinux/script.sh')
-			shutit.send('mkdir -p /root/selinux')
-			shutit.send('cd /root/selinux')
 			shutit.send('chmod +x ./script.sh')
 			shutit.send('./script.sh')
 			shutit.send('sleep 2 && docker logs selinuxdock')

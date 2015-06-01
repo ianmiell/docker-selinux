@@ -104,8 +104,7 @@ docker run -d --name selinuxdock --security-opt label:type:docker_apache_t httpd
 			shutit.send('./script.sh')
 			shutit.send('sleep 2 && docker logs selinuxdock')
 			# Have a look at the log output.
-			shutit.send('dmesg | grep -i SELinux')
-			shutit.send('grep -w denied /var/log/audit/audit.log | tail')
+			shutit.send('grep -w denied /var/log/audit/audit.log')
 		shutit.pause_point('Have a shell:')
 		# Log out.
 		shutit.logout()

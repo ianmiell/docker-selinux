@@ -45,8 +45,15 @@ class docker_selinux(ShutItModule):
 		shutit.send('mkdir -p ' + vagrant_dir)
 		shutit.send('cd ' + vagrant_dir)
 		# If the Vagrantfile exists, we assume we've already init'd appropriately.
-		if not shutit.file_exists('Vagrantfile'):
-			shutit.send('vagrant init jdiprizio/centos-docker-io')
+		shutit.send('rm -f Vagrantfile')
+		shutit.send(r'''cat > Vagrantfile << END
+Vagrant.configure(2) do |config|
+  config.vm.box = "jdiprizio/centos-docker-io"
+  config.vm.provider "virtualbox" do |vb|
+     vb.memory = "1024"
+  end
+end
+END''')
 		# Query the status - if it's powered off or not created, bring it up.
 		if shutit.send_and_match_output('vagrant status',['.*poweroff.*','.*not created.*','.*aborted.*']):
 			shutit.send('vagrant up')
